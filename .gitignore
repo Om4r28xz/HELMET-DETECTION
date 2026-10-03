@@ -7,3 +7,5 @@ coverage/
 !**/.env.example
 npm-debug.log*
 .DS_Store
+auth_info_baileys/
+backend/auth_info_baileys/

@@ -1,4 +1,5 @@
 import { AccessDecision, MissingEquipment } from '../models/access-session';
+import { dispatchAccessDeniedNotifications } from './notification-dispatcher';
 
 export interface TerminalLogInput {
   sessionId: string;
@@ -29,10 +30,16 @@ export interface FinalizationStore {
   completeSession(input: { decision: AccessDecision; denialReason: string | null; endedAt: Date }): Promise<void>;
 }
 
+export interface WorkerContext {
+  workerName: string;
+  workerIdentifier: string;
+}
+
 export async function persistTerminalDecision(
   input: TerminalLogInput & { missingEquipment: MissingEquipment[] },
   store: FinalizationStore,
-  endedAt = new Date()
+  endedAt = new Date(),
+  workerContext?: WorkerContext
 ): Promise<TerminalRecord> {
   const existing = await store.findAccessLog(input.sessionId);
   if (existing) return existing;
@@ -46,6 +53,18 @@ export async function persistTerminalDecision(
       missingEquipment,
       denialReason: input.denialReason ?? ''
     });
+
+    // Fire-and-forget: dispatch WhatsApp notifications to supervisors.
+    // This runs outside the DB transaction to avoid blocking the response.
+    if (workerContext) {
+      void dispatchAccessDeniedNotifications({
+        workerId: input.workerId,
+        workerName: workerContext.workerName,
+        workerIdentifier: workerContext.workerIdentifier,
+        missingEquipment,
+        sessionId: input.sessionId
+      });
+    }
   }
   await store.completeSession({ decision: input.result, denialReason: input.denialReason, endedAt });
   return accessLog;

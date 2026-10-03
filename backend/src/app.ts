@@ -3,6 +3,7 @@ import express from 'express';
 import { HttpError } from './errors/http-error';
 import { errorHandler } from './middleware/error-handler';
 import { apiRouter } from './routes/api';
+import { notificationsRouter } from './routes/notifications';
 import './models';
 
 export const app = express();
@@ -25,6 +26,7 @@ app.use((request, response, next) => {
 });
 app.use(express.json({ limit: '2mb' }));
 app.use('/api', apiRouter);
+app.use('/api/notifications', notificationsRouter);
 app.use((_request, _response, next) => {
   next(new HttpError(404, 'NOT_FOUND', 'Route was not found'));
 });

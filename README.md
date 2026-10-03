@@ -74,14 +74,14 @@ Cuando se deniega el acceso a un trabajador, el sistema envía una notificación
 | `GET` | `/api/notifications/status` | Estado global y estadísticas de notificaciones |
 | `GET` | `/api/notifications` | Listado paginado de notificaciones |
 | `GET` | `/api/notifications/:id` | Detalle de una notificación |
-| `POST` | `/api/notifications/test` | Enviar mensaje de prueba (`{ "phone": "526141320311" }`) |
+| `POST` | `/api/notifications/test` | Enviar mensaje de prueba (`{ "phone": "+521XXXXXXXXXX" }`) |
 
 ### Probar la integración
 
 ```bash
 curl -X POST http://localhost:3000/api/notifications/test \
   -H 'Content-Type: application/json' \
-  -d '{"phone": "526141320311"}'
+  -d '{"phone": "+521XXXXXXXXXX"}'
 ```
 
 ## Validación

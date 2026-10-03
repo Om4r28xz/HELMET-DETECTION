@@ -1,11 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import makeWASocket, {
-  DisconnectReason,
-  useMultiFileAuthState,
-  type WASocket,
-  type ConnectionState
-} from '@whiskeysockets/baileys';
+import type { WASocket, ConnectionState } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { Boom } from '@hapi/boom';
@@ -37,7 +32,17 @@ let currentQRTerminal: string | null = null;
 let isInitializing = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
 
-const AUTH_FOLDER = path.resolve(process.cwd(), 'auth_info_baileys');
+const AUTH_FOLDER = path.resolve(__dirname, '../../auth_info_baileys');
+type BaileysModule = typeof import('@whiskeysockets/baileys');
+let baileysModule: Promise<BaileysModule> | null = null;
+
+function loadBaileys(): Promise<BaileysModule> {
+  if (!baileysModule) {
+    const importModule = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<BaileysModule>;
+    baileysModule = importModule('@whiskeysockets/baileys');
+  }
+  return baileysModule;
+}
 
 /**
  * Normalizes a phone number to digits-only format for WhatsApp.
@@ -89,6 +94,7 @@ export async function initWhatsApp(): Promise<void> {
   isInitializing = true;
 
   try {
+    const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await loadBaileys();
     if (!fs.existsSync(AUTH_FOLDER)) {
       fs.mkdirSync(AUTH_FOLDER, { recursive: true });
     }
@@ -113,13 +119,7 @@ export async function initWhatsApp(): Promise<void> {
         currentQR = qr;
         currentQRDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
         currentQRTerminal = await QRCode.toString(qr, { type: 'terminal', small: true });
-
-        console.log('\n=============================================================');
-        console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
-        console.log(currentQRTerminal);
-        console.log('👉 También puedes abrir en tu navegador:');
-        console.log('   http://localhost:3000/api/notifications/whatsapp/qr');
-        console.log('=============================================================\n');
+        console.log('[WhatsApp] QR listo en http://localhost:3000/api/notifications/whatsapp/qr');
       }
 
       if (connection === 'close') {

@@ -66,7 +66,9 @@ export function evaluatePpeFrame(
     };
   }
 
-  const missingEquipmentSince = state.missingEquipmentSince ?? now;
+  const sameMissingEquipment = state.missingEquipment.length === missingEquipment.length
+    && state.missingEquipment.every((item) => missingEquipment.includes(item));
+  const missingEquipmentSince = sameMissingEquipment ? state.missingEquipmentSince ?? now : now;
   const denied = now - missingEquipmentSince >= config.denialGraceMs;
   return {
     stableFrames: 0,

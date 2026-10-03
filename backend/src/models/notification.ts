@@ -8,6 +8,7 @@ export type NotificationChannel = 'in_app' | 'whatsapp';
 export class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
   declare id: CreationOptional<string>;
   declare supervisorId: string;
+  declare accessSessionId: string | null;
   declare type: NotificationType;
   declare channel: CreationOptional<NotificationChannel>;
   declare status: CreationOptional<NotificationStatus>;
@@ -25,6 +26,7 @@ Notification.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     supervisorId: { type: DataTypes.UUID, allowNull: false, field: 'supervisor_id' },
+    accessSessionId: { type: DataTypes.UUID, allowNull: true, field: 'access_session_id' },
     type: { type: DataTypes.ENUM('access', 'incident', 'system'), allowNull: false },
     channel: { type: DataTypes.ENUM('in_app', 'whatsapp'), allowNull: false, defaultValue: 'in_app' },
     status: { type: DataTypes.ENUM('pending', 'sent', 'read', 'failed'), allowNull: false, defaultValue: 'pending' },

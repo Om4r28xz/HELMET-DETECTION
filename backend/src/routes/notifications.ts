@@ -133,7 +133,7 @@ notificationsRouter.post('/test', async (request, response) => {
   const { phone } = z.object({ phone: z.string().trim().min(1) }).parse(request.body);
 
   if (!isWhatsAppConfigured()) {
-    throw new HttpError(503, 'WHATSAPP_NOT_CONFIGURED', 'WhatsApp is not configured. Set RAPIDAPI_KEY and WHATSAPP_ENABLED=true in .env');
+    throw new HttpError(503, 'WHATSAPP_NOT_CONFIGURED', 'WhatsApp is not configured. Set WHATSAPP_SENDER_PHONE and WHATSAPP_ENABLED=true in backend/.env, then link the device using the QR page.');
   }
 
   const result = await sendTestNotification(phone);

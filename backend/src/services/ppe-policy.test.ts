@@ -91,3 +91,22 @@ test('persists one terminal log and one denial incident when finalization is ret
   assert.deepEqual(incidents, ['session-1']);
   assert.equal(completionCount, 1);
 });
+
+test('restarts the ten-second timer when the missing equipment changes', () => {
+  const missingBoth = evaluatePpeFrame(initialState, { personCount: 1, helmet: false, vest: false }, 1_000, config);
+  const nowMissingOnlyHelmet = evaluatePpeFrame(
+    missingBoth,
+    { personCount: 1, helmet: false, vest: true },
+    10_999,
+    config
+  );
+
+  assert.equal(nowMissingOnlyHelmet.decision, null);
+  assert.equal(nowMissingOnlyHelmet.missingEquipmentSince, 10_999);
+  assert.equal(evaluatePpeFrame(
+    nowMissingOnlyHelmet,
+    { personCount: 1, helmet: false, vest: true },
+    20_999,
+    config
+  ).decision, 'denied');
+});

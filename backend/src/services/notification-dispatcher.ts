@@ -25,17 +25,23 @@ function equipmentLabel(equipment: string): string {
   return equipment;
 }
 
-function buildDenialMessage(context: AccessDeniedContext): { title: string; body: string } {
+export function buildDenialMessage(context: AccessDeniedContext): { title: string; body: string } {
   const missing = context.missingEquipment.map(equipmentLabel);
   const missingText = missing.length > 1
     ? `${missing.slice(0, -1).join(', ')} y ${missing[missing.length - 1]}`
     : missing[0] || 'equipo no especificado';
 
-  const title = `⚠️ Acceso denegado: ${context.workerName}`;
+  const missingHelmet = context.missingEquipment.includes('helmet');
+  const title = missingHelmet
+    ? `⚠️ Alerta: ${context.workerName} no trae casco`
+    : `⚠️ Acceso denegado: ${context.workerName}`;
   const body = [
-    `🚨 *ALERTA DE SEGURIDAD*`,
+    `ALERTA DE SEGURIDAD`,
     ``,
-    `Se ha denegado el acceso al trabajador *${context.workerName}* (${context.workerIdentifier}).`,
+    `Empleado: ${context.workerName}`,
+    `ID: ${context.workerIdentifier}`,
+    ``,
+    missingHelmet ? `El trabajador no trae casco.` : `Acceso denegado por equipo de seguridad incompleto.`,
     ``,
     `📋 *Equipo faltante:* ${missingText}`,
     `🕐 *Fecha:* ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`,
@@ -71,25 +77,44 @@ export async function dispatchAccessDeniedNotifications(
 
     const { title, body } = buildDenialMessage(context);
     const whatsappEnabled = isWhatsAppConfigured();
+      const fallbackPhone = process.env.SUPERVISOR_PHONE?.trim();
+      const fallbackSupervisorId = fallbackPhone && !supervisors.some((supervisor) => supervisor.phone)
+        ? supervisors[0]?.id
+        : null;
 
     for (const supervisor of supervisors) {
       try {
+          const recipientPhone = supervisor.phone || (supervisor.id === fallbackSupervisorId ? fallbackPhone ?? null : null);
         // Create notification record
-        const notification = await Notification.create({
-          supervisorId: supervisor.id,
-          type: 'incident',
-          channel: supervisor.phone && whatsappEnabled ? 'whatsapp' : 'in_app',
-          title,
-          message: body,
-          status: 'pending'
+        const [notification, created] = await Notification.findOrCreate({
+          where: { accessSessionId: context.sessionId, supervisorId: supervisor.id },
+          defaults: {
+            accessSessionId: context.sessionId,
+            supervisorId: supervisor.id,
+            type: 'incident',
+              channel: recipientPhone && whatsappEnabled ? 'whatsapp' : 'in_app',
+            title,
+            message: body,
+            status: 'pending'
+          }
         });
 
         let whatsappResult: WhatsAppSendResult | null = null;
 
+        if (!created) {
+          results.push({
+            notificationId: notification.id,
+            whatsappResult,
+            supervisorName: supervisor.fullName,
+            supervisorPhone: supervisor.phone
+          });
+          continue;
+        }
+
         // Send WhatsApp message if supervisor has a phone and WhatsApp is configured
-        if (supervisor.phone && whatsappEnabled) {
+          if (recipientPhone && whatsappEnabled) {
           whatsappResult = await sendTextMessage({
-            to: supervisor.phone,
+              to: recipientPhone,
             body
           });
 
@@ -105,7 +130,7 @@ export async function dispatchAccessDeniedNotifications(
           notificationId: notification.id,
           whatsappResult,
           supervisorName: supervisor.fullName,
-          supervisorPhone: supervisor.phone
+            supervisorPhone: recipientPhone
         });
       } catch (error) {
         // Log but don't fail the entire dispatch for one supervisor

@@ -10,7 +10,8 @@ Sistema escolar de control de acceso por ID y verificación de equipo de protecc
 - Muestra detecciones, confianza y bounding boxes.
 - Permite acceso después de cinco frames válidos consecutivos; deniega después de diez segundos configurables con PPE faltante.
 - Registra el resultado una vez y crea una incidencia al denegar.
-- Notificaciones WhatsApp automáticas a supervisores al denegar acceso (vía Baileys / WhatsApp Web directo).
+- Notificaciones WhatsApp automáticas tras 10 segundos continuos sin el mismo PPE; cuando falta casco, el mensaje indica explícitamente que el empleado no trae casco.
+- Deduplicación de notificaciones por intento y supervisor; los reintentos de cámara no generan mensajes adicionales.
 - Vinculación sencilla por código QR desde navegador en `http://localhost:3000/api/notifications/whatsapp/qr`.
 - Resolución automática de JID para números de México (`521...`).
 - Endpoints de notificaciones: listado, detalle, estado, QR y prueba de envío.
@@ -25,7 +26,7 @@ Sistema escolar de control de acceso por ID y verificación de equipo de protecc
 
 1. Copia `.env.example` como `.env` y reemplaza las contraseñas de desarrollo.
 2. Copia `backend/.env.example` como `backend/.env`; configura `DB_USER` y `DB_PASSWORD` con los mismos valores del `.env` raíz. Añade una clave Roboflow nueva en `ROBOFLOW_API_KEY`.
-3. Inicia MySQL con `docker compose up -d`.
+3. Inicia MySQL con `docker compose up -d` y el teléfono del supervisor en `SUPERVISOR_PHONE` o en `supervisors.phone`.
 4. Instala dependencias desde la raíz:
 
    ```bash

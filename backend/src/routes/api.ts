@@ -5,6 +5,7 @@ import { sequelize } from '../config/database';
 import { HttpError } from '../errors/http-error';
 import { AccessLog, AccessSession, Incident, Worker } from '../models';
 import { persistTerminalDecision } from '../services/access-session-finalization';
+import { dispatchAccessDeniedNotifications } from '../services/notification-dispatcher';
 import { evaluatePpeFrame, getPpePolicyConfig } from '../services/ppe-policy';
 import { inferImage } from '../services/roboflow-inference';
 
@@ -122,9 +123,6 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
   const inference = await inferImage(image);
   const config = getPpePolicyConfig();
 
-  // Fetch worker info for notification context (needed if access is denied)
-  const worker = await Worker.findByPk(session.workerId, { attributes: ['id', 'identifier', 'fullName'] });
-
   const result = await sequelize.transaction(async (transaction) => {
     const lockedSession = await AccessSession.findByPk(session.id, {
       transaction,
@@ -135,7 +133,7 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
     }
     if (lockedSession.status !== 'active') {
       const accessLog = await AccessLog.findOne({ where: { sessionId: lockedSession.id }, transaction });
-      return { session: sessionResponse(lockedSession), accessLog };
+      return { session: sessionResponse(lockedSession), accessLog, shouldDispatch: false };
     }
 
     const policy = evaluatePpeFrame(
@@ -159,6 +157,7 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
     }, { transaction });
 
     let accessLog: AccessLog | null = null;
+    let shouldDispatch = false;
     if (policy.decision) {
       accessLog = await persistTerminalDecision({
         sessionId: lockedSession.id,
@@ -188,16 +187,27 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
         completeSession: async ({ decision, denialReason, endedAt }) => {
           await lockedSession.update({ status: 'completed', decision, denialReason, endedAt }, { transaction });
         }
-      },
-      new Date(),
-      worker ? { workerName: worker.fullName, workerIdentifier: worker.identifier } : undefined
-      ) as AccessLog;
+      }) as AccessLog;
+      shouldDispatch = policy.decision === 'denied';
     }
 
-    return { session: sessionResponse(lockedSession), accessLog };
+    return { session: sessionResponse(lockedSession), accessLog, shouldDispatch };
   });
 
-  response.status(200).json({ ...inference, ...result });
+  const { shouldDispatch, ...sessionResult } = result;
+  if (shouldDispatch) {
+    void Worker.findByPk(session.workerId, { attributes: ['id', 'identifier', 'fullName'] })
+      .then((worker) => worker && dispatchAccessDeniedNotifications({
+        workerId: session.workerId,
+        workerName: worker.fullName,
+        workerIdentifier: worker.identifier,
+        missingEquipment: result.session.missingEquipment,
+        sessionId: session.id
+      }))
+      .catch((error) => console.error('[access-session] Failed to load worker for WhatsApp notification:', error));
+  }
+
+  response.status(200).json({ ...inference, ...sessionResult });
 });
 
 apiRouter.get('/access-logs', async (request, response) => {

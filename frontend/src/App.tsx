@@ -84,7 +84,8 @@ function workerFromResponse(payload: unknown, searchedIdentifier: string): Worke
 async function responseMessage(response: Response): Promise<string> {
   try {
     const payload = asRecord(await response.json())
-    return firstText(payload, ['message', 'error', 'detail', 'title'])
+    const nestedError = asRecord(payload.error)
+    return firstText(nestedError, ['message']) || firstText(payload, ['message', 'error', 'detail', 'title'])
   } catch {
     return ''
   }
@@ -151,7 +152,8 @@ function equipmentLabel(equipment: string): string {
   return equipment
 }
 
-function accessStatusText(result: InferenceResult | null): string {
+function accessStatusText(result: InferenceResult | null, inferenceState: InferenceState): string {
+  if (inferenceState === 'error') return 'Sin lectura · no es una decisión de acceso'
   if (!result) return 'Pendiente'
   const { session } = result
   if (session.status === 'completed') {
@@ -267,6 +269,7 @@ function App() {
         }
       } catch (error) {
         if (!active) return
+        setInferenceResult(null)
         setInferenceState('error')
         setInferenceMessage(controller.signal.aborted
           ? 'El análisis agotó el tiempo de espera. Se reintentará con la siguiente captura.'
@@ -595,10 +598,10 @@ function App() {
 
             <div className="analysis-header"><span>LECTURA DEL SISTEMA</span><span className={`analysis-pending ${analysisStatusClass}`}>{inferenceResult?.session.status === 'completed' ? inferenceResult.session.decision ? 'DECISIÓN FINAL' : 'SIN DECISIÓN' : inferenceResult?.session.status === 'cancelled' ? 'CANCELADA' : inferenceState === 'ready' ? 'ACTUALIZADO' : inferenceState === 'loading' ? 'ANALIZANDO' : inferenceState === 'error' ? 'ERROR' : 'PENDIENTE'}</span></div>
             <dl className="checklist">
-              <div><dt><span className="check-icon" aria-hidden="true">01</span>Persona</dt><dd>{inferenceResult ? `${inferenceResult.personCount} ${inferenceResult.personCount === 1 ? 'detectada' : 'detectadas'} · ${inferenceResult.equipment.person ? 'presente' : 'no detectada'}` : 'Pendiente'}</dd></div>
-              <div><dt><span className="check-icon" aria-hidden="true">02</span>Casco</dt><dd>{inferenceResult ? hasMissingEquipment(inferenceResult, 'helmet') ? 'Faltante' : inferenceResult.equipment.helmet ? 'Detectado' : 'No detectado' : 'Pendiente'}</dd></div>
-              <div><dt><span className="check-icon" aria-hidden="true">03</span>Chaleco</dt><dd>{inferenceResult ? hasMissingEquipment(inferenceResult, 'vest') ? 'Faltante' : inferenceResult.equipment.vest ? 'Detectado' : 'No detectado' : 'Pendiente'}</dd></div>
-              <div className={`overall-status ${accessStatusClass}`}><dt>Estado de acceso</dt><dd>{accessStatusText(inferenceResult)}</dd></div>
+              <div><dt><span className="check-icon" aria-hidden="true">01</span>Persona</dt><dd>{inferenceState === 'error' ? 'Sin lectura' : inferenceResult ? `${inferenceResult.personCount} ${inferenceResult.personCount === 1 ? 'detectada' : 'detectadas'} · ${inferenceResult.equipment.person ? 'presente' : 'no detectada'}` : 'Pendiente'}</dd></div>
+              <div><dt><span className="check-icon" aria-hidden="true">02</span>Casco</dt><dd>{inferenceState === 'error' ? 'Sin lectura' : inferenceResult ? hasMissingEquipment(inferenceResult, 'helmet') ? 'Faltante' : inferenceResult.equipment.helmet ? 'Detectado' : 'No detectado' : 'Pendiente'}</dd></div>
+              <div><dt><span className="check-icon" aria-hidden="true">03</span>Chaleco</dt><dd>{inferenceState === 'error' ? 'Sin lectura' : inferenceResult ? hasMissingEquipment(inferenceResult, 'vest') ? 'Faltante' : inferenceResult.equipment.vest ? 'Detectado' : 'No detectado' : 'Pendiente'}</dd></div>
+              <div className={`overall-status ${accessStatusClass}`}><dt>Estado de acceso</dt><dd>{accessStatusText(inferenceResult, inferenceState)}</dd></div>
             </dl>
             {inferenceResult && <p className="inference-summary">{inferenceResult.predictions.length} detecciones · umbral {Math.round(inferenceResult.confidenceThreshold * 100)}%</p>}
             {inferenceMessage && <p className="feedback feedback-error" role="alert">{inferenceMessage}</p>}

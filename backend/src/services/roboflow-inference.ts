@@ -64,7 +64,7 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-function normalizePredictions(value: unknown): Prediction[] {
+export function normalizePredictions(value: unknown, imageWidth: number, imageHeight: number): Prediction[] {
   if (!Array.isArray(value)) return [];
 
   return value.flatMap((item): Prediction[] => {
@@ -77,11 +77,18 @@ function normalizePredictions(value: unknown): Prediction[] {
     const width = finiteNumber(candidate.width);
     const height = finiteNumber(candidate.height);
 
-    if (!className || confidence === undefined || x === undefined || y === undefined || width === undefined || height === undefined) {
+    if (!className || confidence === undefined || confidence < 0 || confidence > 1
+      || x === undefined || y === undefined || width === undefined || height === undefined || width <= 0 || height <= 0) {
       return [];
     }
 
-    return [{ class: className, confidence, x, y, width, height }];
+    const left = Math.max(0, x - width / 2);
+    const top = Math.max(0, y - height / 2);
+    const right = Math.min(imageWidth, x + width / 2);
+    const bottom = Math.min(imageHeight, y + height / 2);
+    if (right <= left || bottom <= top) return [];
+
+    return [{ class: className, confidence, x: left, y: top, width: right - left, height: bottom - top }];
   });
 }
 
@@ -108,7 +115,16 @@ export async function inferImage(image: string): Promise<InferenceResult> {
     });
 
     if (!response.ok) {
-      throw new HttpError(502, 'INFERENCE_PROVIDER_ERROR', 'Image inference provider returned an error');
+      if (response.status === 401 || response.status === 403) {
+        throw new HttpError(502, 'ROBOFLOW_AUTH_ERROR', 'Roboflow rechazó la clave. Verifica ROBOFLOW_API_KEY en backend/.env.');
+      }
+      if (response.status === 404) {
+        throw new HttpError(502, 'ROBOFLOW_MODEL_NOT_FOUND', 'Roboflow no encontró el modelo. Verifica ROBOFLOW_MODEL_ID.');
+      }
+      if (response.status === 429) {
+        throw new HttpError(502, 'ROBOFLOW_RATE_LIMIT', 'Roboflow alcanzó el límite de solicitudes. Espera un momento e inténtalo de nuevo.');
+      }
+      throw new HttpError(502, 'INFERENCE_PROVIDER_ERROR', `Roboflow respondió con HTTP ${response.status}.`);
     }
 
     let payload: unknown;
@@ -131,7 +147,7 @@ export async function inferImage(image: string): Promise<InferenceResult> {
     if (imageWidth === undefined || imageHeight === undefined || imageWidth <= 0 || imageHeight <= 0) {
       throw new HttpError(502, 'INVALID_INFERENCE_RESPONSE', 'Image inference provider returned an invalid response');
     }
-    const predictions = normalizePredictions(result.predictions);
+    const predictions = normalizePredictions(result.predictions, imageWidth, imageHeight);
     const qualifyingPredictions = predictions.filter((prediction) => prediction.confidence >= threshold);
     const classes = qualifyingPredictions.map((prediction) => normalizeClass(prediction.class));
     const confidenceFor = (classes: string[]): number | null => {

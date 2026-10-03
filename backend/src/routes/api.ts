@@ -121,6 +121,10 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
   const { image } = z.object({ image: z.string() }).parse(request.body);
   const inference = await inferImage(image);
   const config = getPpePolicyConfig();
+
+  // Fetch worker info for notification context (needed if access is denied)
+  const worker = await Worker.findByPk(session.workerId, { attributes: ['id', 'identifier', 'fullName'] });
+
   const result = await sequelize.transaction(async (transaction) => {
     const lockedSession = await AccessSession.findByPk(session.id, {
       transaction,
@@ -184,7 +188,10 @@ apiRouter.post('/access-sessions/:id/inference', async (request, response) => {
         completeSession: async ({ decision, denialReason, endedAt }) => {
           await lockedSession.update({ status: 'completed', decision, denialReason, endedAt }, { transaction });
         }
-      }) as AccessLog;
+      },
+      new Date(),
+      worker ? { workerName: worker.fullName, workerIdentifier: worker.identifier } : undefined
+      ) as AccessLog;
     }
 
     return { session: sessionResponse(lockedSession), accessLog };

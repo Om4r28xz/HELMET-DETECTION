@@ -10,7 +10,10 @@ Sistema escolar de control de acceso por ID y verificación de equipo de protecc
 - Muestra detecciones, confianza y bounding boxes.
 - Permite acceso después de cinco frames válidos consecutivos; deniega después de diez segundos configurables con PPE faltante.
 - Registra el resultado una vez y crea una incidencia al denegar.
-- WhatsApp/RapidAPI, dashboard administrativo y pruebas contra MySQL aún están pendientes.
+- Notificaciones WhatsApp automáticas a supervisores al denegar acceso (vía Baileys / WhatsApp Web directo).
+- Vinculación sencilla por código QR desde navegador en `http://localhost:3000/api/notifications/whatsapp/qr`.
+- Resolución automática de JID para números de México (`521...`).
+- Endpoints de notificaciones: listado, detalle, estado, QR y prueba de envío.
 
 ## Requisitos
 
@@ -25,25 +28,22 @@ Sistema escolar de control de acceso por ID y verificación de equipo de protecc
 3. Inicia MySQL con `docker compose up -d`.
 4. Instala dependencias desde la raíz:
 
-   ```powershell
+   ```bash
    npm --prefix backend install
    npm --prefix frontend install
    ```
 
 5. Crea las tablas y datos ficticios:
 
-   ```powershell
+   ```bash
    npm --prefix backend run db:migrate
    npm --prefix backend run db:seed
    ```
 
 6. En dos terminales, inicia backend y frontend:
 
-   ```powershell
+   ```bash
    npm --prefix backend run dev
-   ```
-
-   ```powershell
    npm --prefix frontend run dev
    ```
 
@@ -52,6 +52,36 @@ La interfaz estará en `http://localhost:5173` y el backend en `http://localhost
 ## Roboflow
 
 El backend usa `ROBOFLOW_MODEL_ID` (por defecto `hard-hat-universe-0dy7t/26`) y `ROBOFLOW_CONFIDENCE_THRESHOLD=0.70`. Confirma en Roboflow que el modelo detecte las clases persona, casco y chaleco antes de usarlo para decisiones reales. La clave se mantiene en el backend y no debe empezar por `VITE_`.
+
+## WhatsApp (Baileys)
+
+Cuando se deniega el acceso a un trabajador, el sistema envía una notificación por WhatsApp a todos los supervisores activos que tengan un número de teléfono configurado. Se utiliza una conexión directa con Baileys (protocolo WhatsApp Web), permitiendo enviar mensajes reales sin depender de Meta Cloud API ni intermediarios caídos.
+
+### Vinculación de dispositivo remitente
+
+1. Inicia el backend (`npm --prefix backend run dev`).
+2. Abre en tu navegador: `http://localhost:3000/api/notifications/whatsapp/qr`.
+3. Desde tu WhatsApp remitente, ve a **Dispositivos vinculados > Vincular un dispositivo** y escanea el QR.
+4. La sesión se guardará localmente en `auth_info_baileys/` para mantener la conexión persistente.
+
+### Endpoints de notificaciones
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/notifications/whatsapp/qr` | Vista web con código QR para vincular dispositivo |
+| `GET` | `/api/notifications/whatsapp/status` | Estado de conexión con WhatsApp |
+| `GET` | `/api/notifications/status` | Estado global y estadísticas de notificaciones |
+| `GET` | `/api/notifications` | Listado paginado de notificaciones |
+| `GET` | `/api/notifications/:id` | Detalle de una notificación |
+| `POST` | `/api/notifications/test` | Enviar mensaje de prueba (`{ "phone": "526141320311" }`) |
+
+### Probar la integración
+
+```bash
+curl -X POST http://localhost:3000/api/notifications/test \
+  -H 'Content-Type: application/json' \
+  -d '{"phone": "526141320311"}'
+```
 
 ## Validación
 

@@ -8,6 +8,7 @@ export class Supervisor extends Model<InferAttributes<Supervisor>, InferCreation
   declare identifier: string;
   declare fullName: string;
   declare email: string | null;
+  declare phone: string | null;
   declare status: CreationOptional<SupervisorStatus>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -19,6 +20,7 @@ Supervisor.init(
     identifier: { type: DataTypes.STRING(128), allowNull: false, unique: true },
     fullName: { type: DataTypes.STRING(200), allowNull: false, field: 'full_name' },
     email: { type: DataTypes.STRING(254), allowNull: true, unique: true },
+    phone: { type: DataTypes.STRING(20), allowNull: true },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' },
     createdAt: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
     updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' }

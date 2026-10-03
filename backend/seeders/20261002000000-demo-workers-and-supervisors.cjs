@@ -32,6 +32,7 @@ module.exports = {
         identifier: 'DEMO-SUPERVISOR-001',
         full_name: 'Demo Supervisor',
         email: null,
+        phone: '526141320311',
         status: 'active',
         created_at: now,
         updated_at: now
